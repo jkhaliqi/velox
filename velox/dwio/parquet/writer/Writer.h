@@ -89,8 +89,8 @@ class LambdaFlushPolicy : public DefaultFlushPolicy {
 
 struct WriterOptions : public dwio::common::WriterOptions {
   bool enableDictionary = true;
-  int64_t dataPageSize = 1'024 * 1'024;
-  int64_t dictionaryPageSizeLimit = 1'024 * 1'024;
+  int64_t dataPageSize = 100;
+  int64_t dictionaryPageSizeLimit = 100;
   // Growth ratio passed to ArrowDataBufferSink. The default value is a
   // heuristic borrowed from
   // folly/FBVector(https://github.com/facebook/folly/blob/main/folly/docs/FBVector.md#memory-handling).
@@ -108,6 +108,7 @@ struct WriterOptions : public dwio::common::WriterOptions {
   /// Timestamp time zone for Parquet write through Arrow bridge.
   std::optional<std::string> parquetWriteTimestampTimeZone;
   bool writeInt96AsTimestamp = false;
+  std::optional<std::string> parquetDataPageVersion = std::nullopt;
 
   // Parsing session and hive configs.
 
