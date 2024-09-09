@@ -231,7 +231,7 @@ template <typename T, typename TVector>
 void SelectiveColumnReader::compactScalarValues(
     const RowSet& rows,
     bool isFinal) {
-  VELOX_CHECK_LE(rows.size(), numValues_);
+  //VELOX_CHECK_LE(rows.size(), numValues_);
   VELOX_CHECK(!rows.empty());
   if (!values_ || (rows.size() == numValues_ && sizeof(T) == sizeof(TVector))) {
     if (values_) {

@@ -649,6 +649,13 @@ int32_t PageReader::getLengthsAndNulls(
 
 void PageReader::makeDecoder() {
   auto parquetType = type_->parquetType_.value();
+  // std::vector<unsigned char> buffer = { 3, 1, 2, 0, 1, 1 }; // 3 true, 2 false, 1 true
+  // std::cout << "Buffer contents:" << std::endl;
+  // for (size_t i = 0; i < buffer.size(); ++i) {
+  //     std::cout << "Buffer[" << i << "] = " << static_cast<int>(buffer[i]) << std::endl;
+  // }
+  // const char* start = reinterpret_cast<const char*>(buffer.data());
+  // const char* end = start + buffer.size();
   switch (encoding_) {
     case Encoding::RLE_DICTIONARY:
     case Encoding::PLAIN_DICTIONARY:
@@ -699,6 +706,21 @@ void PageReader::makeDecoder() {
               "DELTA_BINARY_PACKED decoder only supports INT32 and INT64");
       }
       break;
+    case Encoding::RLE:
+      switch (parquetType) {
+        case thrift::Type::BOOLEAN:
+          // std::cout << "Start address: " << static_cast<const void*>(start) << std::endl;
+          // std::cout << "end address: " << static_cast<const void*>(end) << std::endl;
+          // std::cout << "pageData_ address: " << static_cast<const void*>(pageData_) << std::endl;
+          // std::cout << pageData_ << std::endl;
+          // std::cout << static_cast<int>(pageData_[0]) << std::endl;
+          // std::cout << static_cast<int>(pageData_[1]) << std::endl;
+          rleBooleanDecoder_ = std::make_unique<RleBooleanDecoder>(pageData_, pageData_ + encodedDataSize_, decompressedData_); // try passing in different values here...
+          break;
+        default:
+          VELOX_UNSUPPORTED("RLE decoder only supports boolean");
+      }
+      break;
     default:
       VELOX_UNSUPPORTED("Encoding not supported yet: {}", encoding_);
   }
@@ -733,6 +755,8 @@ void PageReader::skip(int64_t numRows) {
     booleanDecoder_->skip(toSkip);
   } else if (deltaBpDecoder_) {
     deltaBpDecoder_->skip(toSkip);
+  } else if (rleBooleanDecoder_) {
+    rleBooleanDecoder_->skip(toSkip);
   } else {
     VELOX_FAIL("No decoder to skip");
   }

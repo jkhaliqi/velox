@@ -836,6 +836,110 @@ TEST_F(ParquetTableScanTest, timestampPrecisionMicrosecond) {
   assertEqualResults({expected}, result.second);
 }
 
+TEST_F(ParquetTableScanTest, rleBooleanParquetV2) {
+  loadData(
+      getExampleFilePath("bool.parquet"),
+      ROW({"c0", "c1", "c2"}, {BOOLEAN(), BOOLEAN(), BOOLEAN()}),
+      makeRowVector(
+          {"c0", "c1", "c2"},
+          {
+              makeFlatVector<bool>(std::vector<bool>{true}), //somehow wants this to be false... checked bool as well and it is true not false...
+              makeFlatVector<bool>(std::vector<bool>{false}),
+              makeNullableFlatVector<bool>({std::nullopt}),
+          }));
+    std::shared_ptr<connector::ColumnHandle> c0 = makeColumnHandle(
+      "c0", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+    std::shared_ptr<connector::ColumnHandle> c1 = makeColumnHandle(
+      "c1", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+    std::shared_ptr<connector::ColumnHandle> c2 = makeColumnHandle(
+      "c2", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+
+    assertSelect({"c0"}, "SELECT c0 FROM tmp");
+    assertSelect({"c1"}, "SELECT c1 FROM tmp");
+    assertSelect({"c2"}, "SELECT c2 FROM tmp");
+}
+
+TEST_F(ParquetTableScanTest, rleBooleanTrue) {
+  loadData(
+      getExampleFilePath("true.parquet"),
+      ROW({"c0"}, {BOOLEAN()}),
+      makeRowVector(
+          {"c0"},
+          {
+              makeFlatVector<bool>(std::vector<bool>{true}),
+          }));
+    std::shared_ptr<connector::ColumnHandle> c0 = makeColumnHandle(
+      "c0", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+
+    assertSelect({"c0"}, "SELECT c0 FROM tmp");
+}
+
+
+TEST_F(ParquetTableScanTest, rleBooleanFalse) {
+  loadData(
+      getExampleFilePath("false.parquet"),
+      ROW({"c0"}, {BOOLEAN()}),
+      makeRowVector(
+          {"c0"},
+          {
+              makeFlatVector<bool>(std::vector<bool>{false})
+          }));
+    std::shared_ptr<connector::ColumnHandle> c0 = makeColumnHandle(
+      "c0", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+
+    assertSelect({"c0"}, "SELECT c0 FROM tmp");
+}
+
+TEST_F(ParquetTableScanTest, sixTrue) {
+  loadData(
+      getExampleFilePath("sixtrue.parquet"),
+      ROW({"c0"}, {BOOLEAN()}),
+      makeRowVector(
+          {"c0"},
+          {
+              makeFlatVector<bool>(std::vector<bool>{true, true, true, true, true, true}),
+          }));
+    std::shared_ptr<connector::ColumnHandle> c0 = makeColumnHandle(
+      "c0", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+
+    assertSelect({"c0"}, "SELECT c0 FROM tmp");
+}
+
+TEST_F(ParquetTableScanTest, thirteenFalse) {
+  loadData(
+      getExampleFilePath("thirteenfalse.parquet"),
+      ROW({"c0"}, {BOOLEAN()}),
+      makeRowVector(
+          {"c0"},
+          {
+              makeFlatVector<bool>(std::vector<bool>{false, false, false, false, false, false, false, false, false, false, false, false, false}),
+          }));
+    std::shared_ptr<connector::ColumnHandle> c0 = makeColumnHandle(
+      "c0", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+
+    assertSelect({"c0"}, "SELECT c0 FROM tmp");
+}
+
+TEST_F(ParquetTableScanTest, moreBool) {
+  loadData(
+      getExampleFilePath("morebool.parquet"),
+      ROW({"c0"}, {BOOLEAN()}),
+      makeRowVector(
+          {"c0"},
+          {
+              makeFlatVector<bool>(std::vector<bool>{false, true, false, true, 
+              true, false, false, true, 
+              false, false, true, true, 
+              false, true, true, true,
+              false, true, false, false,
+              true, true}),
+          }));
+    std::shared_ptr<connector::ColumnHandle> c0 = makeColumnHandle(
+      "c0", BOOLEAN(), BOOLEAN(), {}, HiveColumnHandle::ColumnType::kRegular);
+
+    assertSelect({"c0"}, "SELECT c0 FROM tmp");
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   folly::Init init{&argc, &argv, false};
