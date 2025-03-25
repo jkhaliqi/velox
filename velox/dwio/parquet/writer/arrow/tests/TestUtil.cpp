@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "velox/common/file/File.h"
 #include "velox/dwio/parquet/writer/arrow/ColumnPage.h"
 #include "velox/dwio/parquet/writer/arrow/ColumnWriter.h"
 #include "velox/dwio/parquet/writer/arrow/Encoding.h"
@@ -87,18 +88,24 @@ void randomBools(int n, double p, uint32_t seed, bool* out) {
   }
 }
 
-void randomInt96Numbers(
-    int n,
-    uint32_t seed,
-    int32_t minValue,
-    int32_t maxValue,
-    Int96* out) {
+void randomInt96Numbers(int n, uint32_t seed, Int96* out) {
   std::default_random_engine gen(seed);
-  std::uniform_int_distribution<int32_t> d(minValue, maxValue);
+  // INT96 format: first 8 bytes (value[0] and value[1]) are nanoseconds of day,
+  // last 4 bytes (value[2]) are Julian day number.
+  // Nanoseconds in a day: 86400 * 1000000000 = 86400000000000
+  std::uniform_int_distribution<uint64_t> nanosDistribution(
+      0, 86399999999999ULL);
+  // Julian day range: use a reasonable range around Unix epoch (2440588)
+  // Range from year 1970 to 2100 (approximately)
+  std::uniform_int_distribution<uint32_t> daysDistribution(2440588, 2488069);
+
   for (int i = 0; i < n; ++i) {
-    out[i].value[0] = d(gen);
-    out[i].value[1] = d(gen);
-    out[i].value[2] = d(gen);
+    uint64_t nanos = nanosDistribution(gen);
+    uint32_t julianDay = daysDistribution(gen);
+
+    // Store in INT96 format: lower 8 bytes = nanos, upper 4 bytes = Julian day
+    memcpy(&out[i].value[0], &nanos, sizeof(uint64_t));
+    out[i].value[2] = julianDay;
   }
 }
 
@@ -147,6 +154,17 @@ void randomByteArray(
     ByteArray* out,
     int maxSize) {
   randomByteArray(n, seed, buf, out, 0, maxSize);
+}
+
+void writeToFile(
+    std::shared_ptr<exec::test::TempFilePath> filePath,
+    std::shared_ptr<::arrow::Buffer> buffer) {
+  auto localWriteFile = std::make_unique<facebook::velox::LocalWriteFile>(
+      filePath->getPath(), false, false);
+  auto bufferReader = std::make_shared<::arrow::io::BufferReader>(buffer);
+  auto bufferToString = bufferReader->buffer()->ToString();
+  localWriteFile->append(bufferToString);
+  localWriteFile->close();
 }
 
 } // namespace test
