@@ -192,16 +192,92 @@ class ParquetTestBase : public testing::Test,
         "velox/dwio/parquet/tests/reader", "../examples/" + fileName);
   }
 
+  VectorPtr decimalCastChildToTargetType(
+      const VectorPtr& child,
+      const TypePtr& targetType,
+      const std::string& fieldName) {
+    if (child->type()->equivalent(*targetType)) {
+      return child;
+    }
+    if (child->type()->isShortDecimal()) {
+      if (targetType->isShortDecimal()) {
+        return castShortDecimalToShortDecimal(child, targetType);
+      } else if (targetType->isLongDecimal()) {
+        return castShortDecimalToLongDecimal(child, targetType);
+      }
+    }
+    return child;
+  }
+
+  VectorPtr castShortDecimalToShortDecimal(
+      const VectorPtr& child,
+      const TypePtr& targetType) {
+    auto flatChild = child->as<FlatVector<int64_t>>();
+    VELOX_CHECK_NOT_NULL(
+        flatChild,
+        "Expected FlatVector<int64_t> for short decimal, got {}",
+        child->encoding());
+
+    const auto size = child->size();
+    return makeFlatVector<int64_t>(
+        size,
+        [flatChild](vector_size_t row) { return flatChild->valueAt(row); },
+        [child](vector_size_t row) { return child->isNullAt(row); },
+        targetType);
+  }
+
+  VectorPtr castShortDecimalToLongDecimal(
+      const VectorPtr& child,
+      const TypePtr& targetType) {
+    auto flatChild = child->as<FlatVector<int64_t>>();
+    VELOX_CHECK_NOT_NULL(
+        flatChild,
+        "Expected FlatVector<int64_t> for short decimal, got {}",
+        child->encoding());
+
+    const auto size = child->size();
+    return makeFlatVector<int128_t>(
+        size,
+        [flatChild](vector_size_t row) {
+          return HugeInt::build(0, flatChild->valueAt(row));
+        },
+        [child](vector_size_t row) { return child->isNullAt(row); },
+        targetType);
+  }
+
   dwio::common::MemorySink* write(
       const RowVectorPtr& data,
-      const WriterOptions& writerOptions) {
+      const WriterOptions& writerOptions,
+      const RowTypePtr& schema = nullptr) {
     auto sink = std::make_unique<dwio::common::MemorySink>(
         200 * 1024 * 1024,
         dwio::common::FileSink::Options{.pool = leafPool_.get()});
     auto* sinkPtr = sink.get();
-    auto writer = std::make_unique<Writer>(
-        std::move(sink), writerOptions, data->rowType());
-    writer->write(data);
+    auto writerSchema = schema ? schema : data->rowType();
+
+    // If schema is provided and differs from decimal data type, cast the
+    // decimal data to the schema.
+    RowVectorPtr dataToWrite = data;
+    if (schema && !data->type()->equivalent(*schema)) {
+      std::vector<VectorPtr> children;
+      children.reserve(data->childrenSize());
+
+      for (size_t i = 0; i < data->childrenSize(); ++i) {
+        children.push_back(decimalCastChildToTargetType(
+            data->childAt(i), schema->childAt(i), schema->nameOf(i)));
+      }
+
+      dataToWrite = std::make_shared<RowVector>(
+          leafPool_.get(),
+          schema,
+          BufferPtr(nullptr),
+          data->size(),
+          std::move(children));
+    }
+
+    auto writer =
+        std::make_unique<Writer>(std::move(sink), writerOptions, writerSchema);
+    writer->write(dataToWrite);
     writer->close();
     writers_.push_back(std::move(writer));
     return sinkPtr;
@@ -210,14 +286,15 @@ class ParquetTestBase : public testing::Test,
   dwio::common::MemorySink* write(
       const RowVectorPtr& data,
       std::unordered_map<std::string, std::string> configFromFile = {},
-      std::unordered_map<std::string, std::string> sessionProperties = {}) {
+      std::unordered_map<std::string, std::string> sessionProperties = {},
+      const RowTypePtr& schema = nullptr) {
     parquet::WriterOptions writerOptions;
     writerOptions.memoryPool = rootPool_.get();
     auto connectorConfig = config::ConfigBase(std::move(configFromFile));
     auto connectorSessionProperties =
         config::ConfigBase(std::move(sessionProperties));
     writerOptions.processConfigs(connectorConfig, connectorSessionProperties);
-    return write(data, writerOptions);
+    return write(data, writerOptions, schema);
   }
 
   std::unique_ptr<ParquetReader> createReaderInMemory(

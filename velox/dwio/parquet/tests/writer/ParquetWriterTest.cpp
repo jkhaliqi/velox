@@ -661,6 +661,48 @@ TEST_F(ParquetWriterTest, updateWriterOptionsFromHiveConfig) {
       TimestampPrecision::kMilliseconds);
 }
 
+TEST_F(ParquetWriterTest, decimalTypeHandling) {
+  const int64_t kRows = 100;
+  dwio::common::ReaderOptions readerOptions{leafPool_.get()};
+
+  auto schema = ROW({"c0", "c1"}, {DECIMAL(10, 2), DECIMAL(38, 10)});
+
+  auto data = makeRowVector(
+      {makeFlatVector<int64_t>(
+           kRows,
+           [](auto row) { return row * 10 + 99; },
+           nullptr,
+           DECIMAL(4, 2)),
+       makeFlatVector<int64_t>(
+           kRows,
+           [](auto row) { return row * 10 + 99; },
+           nullptr,
+           DECIMAL(4, 2))});
+
+  auto* sinkPtr = write(data, {}, {}, schema);
+
+  // Verify data round-trips correctly with the correct decimal types
+  auto reader = createReaderInMemory(*sinkPtr, readerOptions);
+  ASSERT_EQ(reader->numberOfRows(), kRows);
+  ASSERT_EQ(*reader->rowType(), *schema);
+
+  // Create expected data with the target schema types for comparison
+  auto expectedData = makeRowVector(
+      {makeFlatVector<int64_t>(
+           kRows,
+           [](auto row) { return row * 10 + 99; },
+           nullptr,
+           DECIMAL(10, 2)),
+       makeFlatVector<int128_t>(
+           kRows,
+           [](auto row) { return HugeInt::build(0, row * 10 + 99); },
+           nullptr,
+           DECIMAL(38, 10))});
+
+  auto rowReader = createRowReaderWithSchema(std::move(reader), schema);
+  assertReadWithReaderAndExpected(schema, *rowReader, expectedData, *leafPool_);
+}
+
 #ifdef VELOX_ENABLE_PARQUET
 DEBUG_ONLY_TEST_F(ParquetWriterTest, timestampUnitAndTimeZone) {
   SCOPED_TESTVALUE_SET(
