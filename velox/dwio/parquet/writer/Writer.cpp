@@ -154,6 +154,7 @@ std::shared_ptr<WriterProperties> getArrowParquetWriterOptions(
     properties =
         properties->data_page_version(arrow::ParquetDataPageVersion::V1);
   }
+  properties = properties->version(options.version);
   return properties->build();
 }
 

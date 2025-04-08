@@ -261,6 +261,7 @@ TEST_F(E2EFilterTest, integerDictionary) {
 TEST_F(E2EFilterTest, timestampInt64Direct) {
   options_.enableDictionary = false;
   options_.dataPageSize = 4 * 1024;
+  options_.version = parquet::arrow::ParquetVersion::type::PARQUET_2_6;
 
   testWithTypes(
       "timestamp_val_0:timestamp,"
@@ -273,6 +274,7 @@ TEST_F(E2EFilterTest, timestampInt64Direct) {
 
 TEST_F(E2EFilterTest, timestampInt64Dictionary) {
   options_.dataPageSize = 4 * 1024;
+  options_.version = parquet::arrow::ParquetVersion::type::PARQUET_2_6;
 
   testWithTypes(
       "timestamp_val_0:timestamp,"
