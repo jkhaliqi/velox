@@ -79,4 +79,10 @@ velox_add_library(
   w_web_site.cpp)
 
 velox_include_directories(velox_tpcds_dsdgen PRIVATE include)
-velox_link_libraries(velox_tpcds_dsdgen velox_tpcds_append_info Folly::folly)
+velox_link_libraries(velox_tpcds_dsdgen velox_tpcds_append_info Folly::folly -fsanitize=signed-integer-overflow)
+
+target_compile_options(velox_tpcds_dsdgen PRIVATE -fsanitize=signed-integer-overflow -fno-sanitize-recover=undefined -g)
+target_link_options(velox_tpcds_dsdgen PRIVATE -fsanitize=signed-integer-overflow -fno-sanitize-recover=undefined -g)
+
+# target_compile_options(velox_tpcds_dsdgen PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=undefined -g)
+# target_link_options(velox_tpcds_dsdgen PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=undefined -g)
