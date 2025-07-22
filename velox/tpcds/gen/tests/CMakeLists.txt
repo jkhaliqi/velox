@@ -23,3 +23,6 @@ target_link_libraries(
   Folly::folly
   GTest::gtest
   GTest::gtest_main)
+
+target_compile_options(velox_tpcds_gen_test PRIVATE -fsanitize=signed-integer-overflow -fno-sanitize-recover=undefined -g)
+target_link_options(velox_tpcds_gen_test PRIVATE -fsanitize=signed-integer-overflow -fno-sanitize-recover=undefined -g)
