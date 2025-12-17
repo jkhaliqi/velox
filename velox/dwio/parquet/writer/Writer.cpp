@@ -271,12 +271,14 @@ std::shared_ptr<::arrow::Field> updateFieldNameAndIdRecursive(
     auto mapType = type.asMap();
     auto arrowMapType =
         std::dynamic_pointer_cast<::arrow::MapType>(newField->type());
-    auto newKeyField =
-        updateFieldNameRecursive(arrowMapType->key_field(), *mapType.keyType());
-    auto newValueField = updateFieldNameRecursive(
-        arrowMapType->item_field(), *mapType.valueType());
-    return newField->WithType(
-        ::arrow::map(newKeyField->type(), newValueField->type()));
+    const auto* keySetting = fieldId ? &fieldId->children.at(0) : nullptr;
+    const auto* valueSetting = fieldId ? &fieldId->children.at(1) : nullptr;
+    auto newKeyField = updateFieldNameAndIdRecursive(
+        arrowMapType->key_field(), *mapType.keyType(), keySetting);
+    auto newValueField = updateFieldNameAndIdRecursive(
+        arrowMapType->item_field(), *mapType.valueType(), valueSetting);
+    newField = newField->WithType(
+        std::make_shared<::arrow::MapType>(newKeyField, newValueField));
   } else if (type.isDecimal()) {
     // Parquet type is set from the column type rather than inferred from the
     // field data.
