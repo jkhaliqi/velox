@@ -106,6 +106,7 @@ velox_add_library(
   MapTopN.h
   MapTopNImpl.h
   MapTopNKeys.h
+  MapTopNLambdaImpl.h
   MapTopNValues.h
   MapTrimValues.h
   MapUpdate.h
