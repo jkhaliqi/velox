@@ -189,6 +189,17 @@ function install_arrow {
 
     cd "$DEPENDENCY_DIR"/arrow || exit 1
     git apply "$VELOX_ARROW_CMAKE_PATCH"
+
+    if [[ $EXTRA_ARROW_OPTIONS == *"-DARROW_FLIGHT=ON"* ]]; then
+      echo "Arrow Flight is enabled, applying types.h patch..."
+      ARROW_FLIGHT_TYPES_PATCH="$ABSOLUTE_SCRIPTDIR/../CMake/resolve_dependency_modules/arrow/arrow-flight-types.patch"
+      if [ -f "$ARROW_FLIGHT_TYPES_PATCH" ]; then
+        git apply "$ARROW_FLIGHT_TYPES_PATCH"
+      else
+        echo "Warning: Arrow Flight types patch not found at $ARROW_FLIGHT_TYPES_PATCH"
+      fi
+    fi
+
   ) || exit 1
 
   cmake_install_dir arrow/cpp \
