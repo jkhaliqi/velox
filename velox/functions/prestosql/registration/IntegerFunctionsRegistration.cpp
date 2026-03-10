@@ -30,8 +30,20 @@ void registerSimpleFunctions(const std::string& prefix) {
   registerFunction<XxHash64TinyIntFunction, int64_t, int8_t>(
       {prefix + "xxhash64_internal"});
 
+  registerFunction<XxHash64BigIntFunction, int64_t, int64_t>(
+      {prefix + "$operator$hash_code"});
+  registerFunction<XxHash64IntegerFunction, int64_t, int32_t>(
+      {prefix + "$operator$hash_code"});
+  registerFunction<XxHash64SmallIntFunction, int64_t, int16_t>(
+      {prefix + "$operator$hash_code"});
+  registerFunction<XxHash64TinyIntFunction, int64_t, int8_t>(
+      {prefix + "$operator$hash_code"});
+
   registerFunction<CombineHashFunction, int64_t, int64_t, int64_t>(
       {prefix + "combine_hash_internal"});
+
+  registerFunction<CombineHashFunction, int64_t, int64_t, int64_t>(
+      {prefix + "combine_hash"});
 }
 } // namespace
 

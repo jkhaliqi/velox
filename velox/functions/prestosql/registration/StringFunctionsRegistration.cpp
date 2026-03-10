@@ -54,6 +54,9 @@ void registerSimpleFunctions(const std::string& prefix) {
   registerFunction<XxHash64StringFunction, int64_t, Varchar>(
       {prefix + "xxhash64_internal"});
 
+  registerFunction<XxHash64StringFunction, int64_t, Varchar>(
+      {prefix + "$operator$hash_code"});
+
   // Length for varbinary have different semantics.
   registerFunction<LengthVarbinaryFunction, int64_t, Varbinary>(
       {prefix + "length"});
