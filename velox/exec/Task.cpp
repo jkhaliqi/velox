@@ -132,12 +132,14 @@ inline size_t numSourceNodes(const core::PlanNode* planNode) {
 // Add 'running time' metrics from CpuWallTiming structures to have them
 // available aggregated per thread.
 void addRunningTimeOperatorMetrics(exec::OperatorStats& op) {
-  op.runtimeStats["runningAddInputWallNanos"] =
+  op.runtimeStats[std::string(OperatorStats::kRunningAddInputWallNanos)] =
       RuntimeMetric(op.addInputTiming.wallNanos, RuntimeCounter::Unit::kNanos);
-  op.runtimeStats["runningGetOutputWallNanos"] =
+  op.runtimeStats[std::string(OperatorStats::kRunningGetOutputWallNanos)] =
       RuntimeMetric(op.getOutputTiming.wallNanos, RuntimeCounter::Unit::kNanos);
-  op.runtimeStats["runningFinishWallNanos"] =
+  op.runtimeStats[std::string(OperatorStats::kRunningFinishWallNanos)] =
       RuntimeMetric(op.finishTiming.wallNanos, RuntimeCounter::Unit::kNanos);
+  op.runtimeStats[std::string(OperatorStats::kRunningIsBlockedWallNanos)] =
+      RuntimeMetric(op.isBlockedTiming.wallNanos, RuntimeCounter::Unit::kNanos);
 }
 
 void buildSplitStates(
@@ -2503,6 +2505,9 @@ ContinueFuture Task::terminate(TaskState terminalState) {
     exchangeClients.swap(exchangeClients_);
 
     barrierPromises.swap(barrierFinishPromises_);
+    // Clear the barrier flag to ensure underBarrier() returns false after task
+    // termination.
+    barrierRequested_ = false;
   }
 
   taskCompletionNotifier.notify();

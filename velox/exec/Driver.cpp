@@ -51,7 +51,7 @@ void recordSilentThrows(Operator& op) {
   auto numThrow = threadNumVeloxThrow();
   if (numThrow > 0) {
     op.stats().wlock()->addRuntimeStat(
-        "numSilentThrow", RuntimeCounter(numThrow));
+        std::string(DriverStats::kNumSilentThrow), RuntimeCounter(numThrow));
   }
 }
 
@@ -124,6 +124,10 @@ bool isAggregationSpillOperator(std::string_view operatorType) {
   return operatorType == OperatorType::kAggregation ||
       operatorType == OperatorType::kPartialAggregation;
 }
+
+bool isRowNumberSpillOperator(std::string_view operatorType) {
+  return operatorType == OperatorType::kRowNumber;
+}
 } // namespace
 
 std::optional<common::SpillConfig> DriverCtx::makeSpillConfig(
@@ -158,6 +162,11 @@ std::optional<common::SpillConfig> DriverCtx::makeSpillConfig(
         queryConfig.aggregationSpillFileCreateConfig();
     if (!aggregationConfig.empty()) {
       fileCreateConfig = aggregationConfig;
+    }
+  } else if (isRowNumberSpillOperator(operatorType)) {
+    const auto& rowNumberConfig = queryConfig.rowNumberSpillFileCreateConfig();
+    if (!rowNumberConfig.empty()) {
+      fileCreateConfig = rowNumberConfig;
     }
   }
 
@@ -202,6 +211,7 @@ BlockingState::BlockingState(
               .count()) {
   // Set before leaving the thread.
   driver_->state().hasBlockingFuture = true;
+  driver_->state().blockingStartUs = sinceUs_;
   numBlockedDrivers_++;
 }
 
@@ -407,7 +417,7 @@ CpuWallTiming Driver::processLazyIoStats(
   auto lockStats = op.stats().wlock();
 
   // Checks and tries to update cpu time from lazy loads.
-  auto it = lockStats->runtimeStats.find(LazyVector::kCpuNanos);
+  auto it = lockStats->runtimeStats.find(std::string(LazyVector::kCpuNanos));
   if (it == lockStats->runtimeStats.end()) {
     // Return early if no lazy activity.  Lazy CPU and wall times are recorded
     // together, checking one is enough.
@@ -425,7 +435,7 @@ CpuWallTiming Driver::processLazyIoStats(
 
   // Checks and tries to update wall time from lazy loads.
   int64_t wallDelta = 0;
-  it = lockStats->runtimeStats.find(LazyVector::kWallNanos);
+  it = lockStats->runtimeStats.find(std::string(LazyVector::kWallNanos));
   if (it != lockStats->runtimeStats.end()) {
     const int64_t wall = it->second.sum;
     wallDelta = std::max<int64_t>(0, wall - lockStats->lastLazyWallNanos);
@@ -436,7 +446,7 @@ CpuWallTiming Driver::processLazyIoStats(
 
   // Checks and tries to update input bytes from lazy loads.
   int64_t inputBytesDelta = 0;
-  it = lockStats->runtimeStats.find(LazyVector::kInputBytes);
+  it = lockStats->runtimeStats.find(std::string(LazyVector::kInputBytes));
   if (it != lockStats->runtimeStats.end()) {
     const int64_t inputBytes = it->second.sum;
     inputBytesDelta = inputBytes - lockStats->lastLazyInputBytes;
@@ -515,7 +525,7 @@ StopReason Driver::runInternal(
   // been deleted.
   if (curOperatorId_ < operators_.size()) {
     operators_[curOperatorId_]->addRuntimeStat(
-        "queuedWallNanos",
+        std::string(DriverStats::kQueuedWallNanos),
         RuntimeCounter(queuedTimeUs * 1'000, RuntimeCounter::Unit::kNanos));
     RECORD_HISTOGRAM_METRIC_VALUE(
         kMetricDriverQueueTimeMs, queuedTimeUs / 1'000);
@@ -873,7 +883,7 @@ void Driver::closeOperators() {
         stats.isBlockedTiming.cpuNanos;
 
     if (operatorCpuNanos > 0) {
-      stats.runtimeStats[OperatorStats::kDriverCpuTime] =
+      stats.runtimeStats[std::string(OperatorStats::kDriverCpuTime)] =
           RuntimeMetric(operatorCpuNanos, RuntimeCounter::Unit::kNanos);
     }
 
@@ -884,14 +894,26 @@ void Driver::closeOperators() {
 void Driver::updateStats() {
   DriverStats stats;
   if (state_.totalPauseTimeMs > 0) {
-    stats.runtimeStats[DriverStats::kTotalPauseTime] = RuntimeMetric(
-        1'000'000 * state_.totalPauseTimeMs, RuntimeCounter::Unit::kNanos);
+    stats.runtimeStats[std::string(DriverStats::kTotalPauseTime)] =
+        RuntimeMetric(
+            1'000'000 * state_.totalPauseTimeMs, RuntimeCounter::Unit::kNanos);
   }
   if (state_.totalOffThreadTimeMs > 0) {
-    stats.runtimeStats[DriverStats::kTotalOffThreadTime] = RuntimeMetric(
-        1'000'000 * state_.totalOffThreadTimeMs, RuntimeCounter::Unit::kNanos);
+    stats.runtimeStats[std::string(DriverStats::kTotalOffThreadTime)] =
+        RuntimeMetric(
+            1'000'000 * state_.totalOffThreadTimeMs,
+            RuntimeCounter::Unit::kNanos);
   }
   task()->addDriverStats(ctx_->pipelineId, std::move(stats));
+}
+
+void Driver::updateOperatorBlockingStats() {
+  // Record blocked time if the driver was blocked when terminated.
+  // This ensures we don't lose blocked time metrics when a query is aborted.
+  if (state_.hasBlockingFuture && blockedOperatorId_ < operators_.size()) {
+    operators_[blockedOperatorId_]->recordBlockingTime(
+        state_.blockingStartUs, blockingReason_);
+  }
 }
 
 void Driver::startBarrier() {
@@ -1000,6 +1022,7 @@ void Driver::close() {
 void Driver::closeByTask() {
   VELOX_CHECK(isOnThread());
   VELOX_CHECK(isTerminated());
+  updateOperatorBlockingStats();
   closeOperators();
   updateStats();
   closed_ = true;
@@ -1129,11 +1152,13 @@ int Driver::pushdownFilters(
       operators_[j]->addDynamicFilterLocked(filterSource->planNodeId(), *lk);
     }
     operators_[j]->addRuntimeStat(
-        "dynamicFiltersAccepted", RuntimeCounter(numFiltersAccepted[j]));
+        std::string(DriverStats::kDynamicFiltersAccepted),
+        RuntimeCounter(numFiltersAccepted[j]));
   }
   if (numFiltersProduced > 0) {
     filterSource->addRuntimeStat(
-        "dynamicFiltersProduced", RuntimeCounter(numFiltersProduced));
+        std::string(DriverStats::kDynamicFiltersProduced),
+        RuntimeCounter(numFiltersProduced));
   }
   return numFiltersProduced;
 }

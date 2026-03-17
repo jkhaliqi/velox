@@ -43,6 +43,7 @@ add_executable(
   ArrayPositionTest.cpp
   ArrayRemoveTest.cpp
   ArrayShuffleTest.cpp
+  ArraySplitIntoChunksTest.cpp
   ArraySortTest.cpp
   ArraySubsetTest.cpp
   L2NormTest.cpp
@@ -51,6 +52,8 @@ add_executable(
   ArraySumTest.cpp
   ArrayTrimTest.cpp
   ArrayUnionTest.cpp
+  DotProductTest.cpp
+  DotProductFuzzerTest.cpp
   ArgTypesGeneratorTest.cpp
   BinaryFunctionsTest.cpp
   BingTileCastTest.cpp
@@ -88,10 +91,12 @@ add_executable(
   MapIntersectTest.cpp
   MapKeysOverlapTest.cpp
   MapNormalizeTest.cpp
+  MapValuesInRangeTest.cpp
   RemapKeysTest.cpp
   MapTopNTest.cpp
   MapTopNKeysTest.cpp
   MapTopNValuesTest.cpp
+  MapTrimValuesTest.cpp
   MapKeysAndValuesTest.cpp
   MapKeysByTopNValuesTest.cpp
   MapMatchTest.cpp
@@ -124,6 +129,7 @@ add_executable(
   TransformKeysTest.cpp
   TransformTest.cpp
   TransformValuesTest.cpp
+  TransformWithIndexTest.cpp
   TrimFunctionsTest.cpp
   TypeOfTest.cpp
   TDigestCastTest.cpp
